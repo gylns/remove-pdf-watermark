@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 from tempfile import NamedTemporaryFile
 from os import path
@@ -75,24 +76,31 @@ if __name__ == '__main__':
             # 1. Uncompress the file so we can find the watermark text.
             temp1 = NamedTemporaryFile(delete=False)
             temp1.close()
+
+            starttime = time.time()
             exitcode = subprocess.call(
                 ['pdftk', filename, 'output', temp1.name, 'uncompress'])
             if exitcode != 0:
                 sys.stderr.write(
                     'pdftk failed to uncompress {}. Aborting.\n'.format(filename))
                 raise Exception
+            sys.stdout.write('{} uncompressed: {:.3f} sec\n'.format(filename, time.time() - starttime))
 
             temp2 = NamedTemporaryFile(delete=False)
+            starttime = time.time()
             remove_watermark_objects(open(temp1.name, 'r+b'), temp2, needle)
+            sys.stdout.write('{} removed watermark: {:.3f} sec\n'.format(filename, time.time() - starttime))
             temp2.close()
 
             outfilename = get_outfilename(filename)
+            starttime = time.time()
             exitcode = subprocess.call(
                 ['pdftk', temp2.name, 'output', outfilename, 'compress'])
             if exitcode != 0:
                 sys.stderr.write(
                     'pdftk failed to compress processed file. Aborting.\n')
                 raise Exception
+            sys.stdout.write('{} compressed: {:.3f} sec\n'.format(filename, time.time() - starttime))
 
             print('Writing scrubbed file to %s' % outfilename)
         except Exception:
