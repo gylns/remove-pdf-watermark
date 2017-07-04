@@ -48,7 +48,9 @@ def remove_watermark_objects(infile, outfile, needle):
             outfile.write(line)
 
 
-def get_outfilename(infilename):
+def get_outfilename(infilename, overwrite):
+    if overwrite:
+        return infilename
     if infilename[-4:] == '.pdf':
         return '{}.scrubbed.pdf'.format(infilename[:-4])
     return infilename + '.scrubbed'
@@ -67,9 +69,15 @@ if __name__ == '__main__':
         sys.stderr.write(usage)
         sys.exit(1)
 
+    overwrite = False
+
+    if sys.argv[2] == '--overwrite':
+        overwrite = True
+
     for filename in sys.argv[2:]:
         if not path.exists(filename):
-            sys.stderr.write('File does not exist: %s\n' % filename)
+            if not overwrite:
+                sys.stderr.write('File does not exist: %s\n' % filename)
             continue
 
         try:
