@@ -5,41 +5,51 @@ import re
 import subprocess
 import sys
 import time
+import shutil
 
 from tempfile import NamedTemporaryFile
 from os import path
 
-objstart = re.compile(b'^\d+ \d+ obj\s*$', re.MULTILINE)
+objstart = re.compile(br'^\d+ \d+ obj\s*$')
+content = re.compile(br'^(/Contents \[.*) \d+ \d+ R]$', re.MULTILINE)
 
 
 def writebuffer(fh, buffer):
     for line in buffer:
         fh.write(line)
 
-
 def remove_watermark_objects(infile, outfile, needle):
     '''Searches through infile for needle and removes its innermost containing object.
     Writes to outfile. infile must have been opened in binary mode and outfile must
     have been opened in binary mode.'''
-    buffer = b''
+    buffer = []
     for line in infile.readlines():
         # Note that this will only ever strip the innermost object
         # We don't deal with nested objects and so cannot strip an
         # outer object
         if not line.startswith(b'endobj'):
-            buffer += line
+            buffer.append(line)
         else:
-            if not needle in buffer:
-                outfile.write(buffer)
-            else:
-                it = re.finditer(objstart, buffer)
-                m = None
-                for m in it:
-                    pass
-                if m != None:
-                    outfile.write(buffer[:m.start()])
+            foundneedle = False
+            bstring = b''.join(buffer)
+            if needle in bstring:
+                for i in range(len(buffer) - 1, -1, -1):
+                    if objstart.match(buffer[i]):
+                        foundneedle = True
+                        writebuffer(outfile, buffer[:i])
+            if not foundneedle:
+                outfile.write(bstring)
+            buffer = []
+    outfile.write(b''.join(buffer))
+
+def remove_watermark_cambridge(infile, outfile):
+    buffer = b''
+    for line in infile.readlines():
+        buffer += line
+        if (len(buffer) > 1024 * 1024):
+            outfile.write(re.sub(content, br'\1]', buffer))
             buffer = b''
-    outfile.write(buffer)
+    outfile.write(re.sub(content, br'\1]', buffer))
 
 
 def get_outfilename(infilename, overwrite):
@@ -68,6 +78,21 @@ if __name__ == '__main__':
     if sys.argv[2] == '--overwrite':
         overwrite = True
 
+    cambridge = False
+    uncompress = True
+    compress = True
+
+    if len(sys.argv) > 3:
+        if sys.argv[2] == '--overwrite' or sys.argv[3] == '--overwrite':
+            overwrite = True
+
+        if sys.argv[2] == '--cambridge' or sys.argv[3] == '--cambridge':
+            cambridge = True
+    
+    if cambridge:
+        uncompress = False
+        compress = False
+
     for filename in sys.argv[2:]:
         if not path.exists(filename):
             if not overwrite:
@@ -75,39 +100,46 @@ if __name__ == '__main__':
             continue
 
         try:
-            # 1. Uncompress the file so we can find the watermark text.
-            temp1 = NamedTemporaryFile(delete=False)
-            temp1.close()
+            if uncompress:
+                # 1. Uncompress the file so we can find the watermark text.
+                temp1 = NamedTemporaryFile(delete=False)
+                temp1.close()
+                starttime = time.time()
+                exitcode = subprocess.call(
+                    ['pdftk', filename, 'output', temp1.name, 'uncompress'])
+                if exitcode != 0:
+                    sys.stderr.write(
+                        'pdftk failed to uncompress {}. Aborting.\n'.format(filename))
+                    raise Exception
 
-            starttime = time.time()
-            exitcode = subprocess.call(
-                ['pdftk', filename, 'output', temp1.name, 'uncompress'])
-            if exitcode != 0:
-                sys.stderr.write(
-                    'pdftk failed to uncompress {}. Aborting.\n'.format(filename))
-                raise Exception
-            sys.stdout.write('{} uncompressed: {:.3f} sec\n'.format(
-                filename, time.time() - starttime))
+                sys.stdout.write("{} uncompress: {} (s).\n".format(
+                    filename, time.time() - starttime))
 
             temp2 = NamedTemporaryFile(delete=False)
             starttime = time.time()
-            remove_watermark_objects(open(temp1.name, 'r+b'), temp2, needle)
+            if not cambridge:
+                remove_watermark_objects(
+                    open(temp1.name, 'r+b'), temp2, needle)
+            else:
+                remove_watermark_cambridge(open(filename, 'r+b'), temp2)
             sys.stdout.write('{} removed watermark: {:.3f} sec\n'.format(
                 filename, time.time() - starttime))
             temp2.close()
 
             outfilename = get_outfilename(filename, overwrite)
-            starttime = time.time()
-            exitcode = subprocess.call(
-                ['pdftk', temp2.name, 'output', outfilename, 'compress'])
-            if exitcode != 0:
-                sys.stderr.write(
-                    'pdftk failed to compress processed file. Aborting.\n')
-                raise Exception
-            sys.stdout.write('{} compressed: {:.3f} sec\n'.format(
-                filename, time.time() - starttime))
+            if compress:
+                starttime = time.time()
+                exitcode = subprocess.call(
+                    ['pdftk', temp2.name, 'output', outfilename, 'compress'])
+                if exitcode != 0:
+                    sys.stderr.write(
+                        'pdftk failed to compress processed file. Aborting.\n')
+                    raise Exception
 
-            print('Writing scrubbed file to %s' % outfilename)
+                sys.stdout.write('{} compress: {} (s).\n'.format(
+                    outfilename, time.time() - starttime))
+            else:
+                shutil.copyfile(temp2.name, outfilename)
         except Exception:
             try:
                 os.unlink(temp1.name)
