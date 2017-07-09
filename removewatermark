@@ -11,7 +11,7 @@ from tempfile import NamedTemporaryFile
 from os import path
 
 objstart = re.compile(br'^\d+ \d+ obj\s*$')
-content = re.compile(br'^(/Contents \[.*) \d+ \d+ R]$', re.MULTILINE)
+content = re.compile(br'^(/Contents \[[^\]]*) \d+ \d+ R]$', re.MULTILINE | re.DOTALL)
 
 
 def writebuffer(fh, buffer):
