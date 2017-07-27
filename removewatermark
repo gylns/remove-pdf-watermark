@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 import shutil
+import argparse
 
 from tempfile import NamedTemporaryFile
 from os import path
@@ -63,6 +64,16 @@ def get_outfilename(infilename, overwrite):
 if __name__ == '__main__':
     usage = 'Usage: {0} <watermark text> filename [filenames...]\n'.format(
         sys.argv[0])
+    # create an ArgumentParser object
+    parser = argparse.ArgumentParser(description="remove watermark of input pdf files.")
+    parser.add_argument('argv', nargs='*')
+    parser.add_argument('--overwrite', action='store_true')
+    parser.add_argument('--cambridge', action='store_true')
+    parser.add_argument('--nouncompress', action='store_true')
+    parser.add_argument('--nocompress', action='store_true')
+
+    args = parser.parse_args()
+
     try:
         needle = bytes(sys.argv[1], 'latin-1')
     except IndexError:
@@ -73,27 +84,12 @@ if __name__ == '__main__':
         sys.stderr.write(usage)
         sys.exit(1)
 
-    overwrite = False
+    overwrite = args.overwrite
+    cambridge = args.cambridge
+    uncompress = not args.nouncompress
+    compress = not args.nocompress
 
-    if sys.argv[2] == '--overwrite':
-        overwrite = True
-
-    cambridge = False
-    uncompress = True
-    compress = True
-
-    if len(sys.argv) > 3:
-        if sys.argv[2] == '--overwrite' or sys.argv[3] == '--overwrite':
-            overwrite = True
-
-        if sys.argv[2] == '--cambridge' or sys.argv[3] == '--cambridge':
-            cambridge = True
-    
-    if cambridge:
-        uncompress = False
-        compress = False
-
-    for filename in sys.argv[2:]:
+    for filename in args.argv[1:]:
         if not path.exists(filename):
             if not overwrite:
                 sys.stderr.write('File does not exist: %s\n' % filename)
