@@ -113,11 +113,15 @@ if __name__ == '__main__':
 
             temp2 = NamedTemporaryFile(delete=False)
             starttime = time.time()
-            if not cambridge:
-                remove_watermark_objects(
-                    open(temp1.name, 'r+b'), temp2, needle)
+            if uncompress:
+                pdfName = temp1.name
             else:
-                remove_watermark_cambridge(open(filename, 'r+b'), temp2)
+                pdfName = filename
+            if not cambridge:
+                remove_watermark_objects(open(pdfName, 'r+b'), temp2, needle)
+            else:
+                remove_watermark_cambridge(open(pdfName, 'r+b'), temp2)
+
             sys.stdout.write('{} removed watermark: {:.3f} sec\n'.format(
                 filename, time.time() - starttime))
             temp2.close()
