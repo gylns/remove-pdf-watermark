@@ -96,6 +96,7 @@ if __name__ == '__main__':
             continue
 
         try:
+            sys.stdout.write("\n{}:\n".format(filename))
             if uncompress:
                 # 1. Uncompress the file so we can find the watermark text.
                 temp1 = NamedTemporaryFile(delete=False)
@@ -108,8 +109,7 @@ if __name__ == '__main__':
                         'pdftk failed to uncompress {}. Aborting.\n'.format(filename))
                     raise Exception
 
-                sys.stdout.write("{} uncompress: {} (s).\n".format(
-                    filename, time.time() - starttime))
+                sys.stdout.write("\t\tuncompress: {:.3f} sec\n".format(time.time() - starttime))
 
             temp2 = NamedTemporaryFile(delete=False)
             starttime = time.time()
@@ -122,8 +122,7 @@ if __name__ == '__main__':
             else:
                 remove_watermark_cambridge(open(pdfName, 'r+b'), temp2)
 
-            sys.stdout.write('{} removed watermark: {:.3f} sec\n'.format(
-                filename, time.time() - starttime))
+            sys.stdout.write('\t\tremove watermark: {:.3f} sec\n'.format(time.time() - starttime))
             temp2.close()
 
             outfilename = get_outfilename(filename, overwrite)
@@ -136,8 +135,7 @@ if __name__ == '__main__':
                         'pdftk failed to compress processed file. Aborting.\n')
                     raise Exception
 
-                sys.stdout.write('{} compress: {} (s).\n'.format(
-                    outfilename, time.time() - starttime))
+                sys.stdout.write('\t\tcompress: {:.3f} sec\n'.format(time.time() - starttime))
             else:
                 shutil.copyfile(temp2.name, outfilename)
         except Exception:
