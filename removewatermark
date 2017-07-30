@@ -12,7 +12,7 @@ from tempfile import NamedTemporaryFile
 from os import path
 
 objstart = re.compile(br'^\d+ \d+ obj\s*$')
-content = re.compile(br'^(/Contents \[[^\]]*) \d+ \d+ R]$', re.MULTILINE | re.DOTALL)
+content = re.compile(br'^(/Contents \[[^\]]*) \d+ \d+ R]', re.MULTILINE | re.DOTALL)
 
 
 def writebuffer(fh, buffer):
@@ -44,14 +44,32 @@ def remove_watermark_objects(infile, outfile, needle):
     outfile.write(b''.join(buffer))
 
 def remove_watermark_cambridge(infile, outfile):
-    buffer = b''
-    for line in infile.readlines():
-        buffer += line
-        if (len(buffer) > 1024 * 1024):
-            outfile.write(re.sub(content, br'\1]', buffer))
-            buffer = b''
-    outfile.write(re.sub(content, br'\1]', buffer))
+    buffer=b''
+    rbuffer = infile.read(1024*1024)
+    mark = b'/Contents ['
 
+    while len(rbuffer) > 0:
+        buffer += rbuffer
+        while len(buffer) > len(mark):
+            offset = buffer.find(mark)
+            if offset < 0:
+                if len(buffer) > len(mark):
+                    outfile.write(buffer[:len(buffer) - len(mark)])
+                    buffer = buffer[len(buffer) - len(mark):]
+            else:
+                if offset > 0:
+                    outfile.write(buffer[:offset])
+                    buffer = buffer[offset:]
+                offset = buffer.find(b']')
+                if offset < 0:
+                    break
+                else:
+                    outfile.write(re.sub(content, br'\1]', buffer[:offset+1]))
+                    buffer= buffer[offset+1:]
+
+        rbuffer = infile.read(1024*1024)
+    if len(buffer) > 0:
+        outfile.write(buffer)
 
 def get_outfilename(infilename, overwrite):
     if overwrite:
